@@ -133,19 +133,30 @@ data "coder_parameter" "cpu" {
   }
 }
 
+data "coder_parameter" "gpu" {
+  name         = "gpu"
+  display_name = "GPU"
+  description  = "Enable GPU usage for this workspace?"
+  default      = false
+  mutable      = true
+  type         = "bool"
+  form_type    = "checkbox"
+  order        = 4
+}
+
 data "coder_parameter" "memory" {
   name         = "memory"
   display_name = "Memory"
-  description  = "The amount of memory in GB"
-  default      = 4
+  description  = "The amount of memory in Mi"
+  default      = 512
   icon         = "/icon/memory.svg"
   mutable      = true
   order        = 2
   type         = "number"
   form_type    = "slider"
   validation {
-    min = 4
-    max = 64
+    min = 512
+    max = 8192
   }
 }
 
@@ -212,6 +223,38 @@ data "coder_parameter" "image" {
   }
 }
 
+data "coder_parameter" "device" {
+  name         = "device"
+  display_name = "Device"
+  description  = "Select destination device"
+  mutable      = true
+  type         = "string"
+  order        = 5
+  default      = "false"
+  option {
+    name  = "false"
+    value = "false"
+    icon  = ""
+  }
+  option {
+    name  = "Raspberry Pi 3"
+    value = "raspberrypi3"
+    icon  = ""
+  }
+
+  option {
+    name  = "Raspberry Pi 5"
+    value = "raspberrypi5"
+    icon  = ""
+  }
+
+  option {
+    name  = "Nvidia Jetson Orin Nano"
+    value = "jetson-orin"
+    icon  = ""
+  }
+}
+
 data "coder_parameter" "jetbrains_gateway" {
   name         = "ide"
   display_name = "Jetbrains Gateway"
@@ -245,6 +288,10 @@ data "http" "exchange_token" {
   }
 
   request_body = "grant_type=urn:ietf:params:oauth:grant-type:token-exchange&scope=openid%20offline_access%20credentials&subject_token_type=urn:ietf:params:oauth:token-type:access_token&subject_token=${data.coder_workspace_owner.me.oidc_access_token}"
+}
+
+locals {
+  tolerations = jsondecode(data.kubernetes_config_map_v1.workspace_config.data["tolerations.json"])
 }
 
 provider "kubernetes" {
@@ -306,7 +353,8 @@ module "git-clone" {
 
 resource "coder_agent" "code-toolbox" {
   os   = "linux"
-  arch = "amd64"
+  arch = "%{ if data.coder_parameter.device.value == "raspberrypi3" }arm64%{ else }%{ if data.coder_parameter.device.value == "raspberrypi5" }arm64%{ else }%{ if data.coder_parameter.device.value == "jetson-orin" }arm64%{ else }amd64%{ endif }%{ endif }%{ endif }"
+
   metadata {
     display_name = "CPU Usage"
     key          = "0_cpu_usage"
@@ -719,10 +767,11 @@ resource "kubernetes_deployment_v1" "code-toolbox" {
         }
       }
       spec {
+        node_selector = data.coder_parameter.device.value != "false" ? {for t in local.tolerations : t["key"] => t["value"] if t["value"] == data.coder_parameter.device.value} : {}
+
         dynamic "toleration" {
-          for_each = data.coder_parameter.gpu.value != "false" ? flatten([
-            for template in local.templates : template.tolerations if template.name == data.coder_parameter.gpu.value
-          ]) : []
+          for_each = data.coder_parameter.device.value != "false" ? [for t in local.tolerations : t if t["value"] == data.coder_parameter.device.value] : []
+
           content {
             key      = toleration.value["key"]
             operator = toleration.value["operator"]
@@ -730,6 +779,7 @@ resource "kubernetes_deployment_v1" "code-toolbox" {
             effect   = toleration.value["effect"]
           }
         }
+        
         security_context {
           run_as_user     = "10000"
           fs_group        = "10000"
@@ -742,7 +792,7 @@ resource "kubernetes_deployment_v1" "code-toolbox" {
         container {
           name        = "code-toolbox"
           image       = data.coder_parameter.image.value
-          command     = ["sh", "-c", coder_agent.code-toolbox.init_script]
+          command     = ["sh", "-c", replace(coder_agent.code-toolbox.init_script, "coder.ipcei-testbed.internal", "coder.digitalhub.svc.cluster.local")]
           working_dir = "/home/${data.coder_workspace_owner.me.name}"
           security_context {
             run_as_user                = "10000"
@@ -777,6 +827,10 @@ resource "kubernetes_deployment_v1" "code-toolbox" {
           env {
             name  = "SHELL"
             value = "/bin/bash"
+          }
+          env {
+            name  = "CODER_AGENT_URL"
+            value = "http://coder.digitalhub.svc.cluster.local"
           }
           env_from {
             config_map_ref {
@@ -813,27 +867,16 @@ resource "kubernetes_deployment_v1" "code-toolbox" {
             protocol       = "TCP"
           }
           resources {
-            requests = merge(
-              {
-                "cpu"    = "${data.coder_parameter.cpu.value}"
-                "memory" = "${data.coder_parameter.memory.value}Gi"
-              },
-              try(
-                { for template in local.templates : template.resources.key => template.resources.value if template.name == data.coder_parameter.gpu.value },
-                {}
-              )
-            )
-
-            limits = merge(
-              {
-                "cpu"    = "${data.coder_parameter.cpu.value}"
-                "memory" = "${data.coder_parameter.memory.value}Gi"
-              },
-              try(
-                { for template in local.templates : template.resources.key => template.resources.value if template.name == data.coder_parameter.gpu.value },
-                {}
-              )
-            )
+            requests = {
+              "cpu"            = "100m"
+              "memory"         = "128Mi"
+              "nvidia.com/gpu" = data.coder_parameter.gpu.value ? 1 : null
+            }
+            limits = {
+              "cpu"            = "${data.coder_parameter.cpu.value}"
+              "memory"         = "${data.coder_parameter.memory.value}Mi"
+              "nvidia.com/gpu" = data.coder_parameter.gpu.value ? 1 : null
+            }
           }
           volume_mount {
             mount_path = "/home/${data.coder_workspace_owner.me.name}"
@@ -872,7 +915,7 @@ resource "kubernetes_deployment_v1" "code-toolbox" {
             read_only  = true
           }
           dynamic "volume_mount" {
-            for_each = data.coder_parameter.gpu.value != "false" ? [1] : []
+            for_each = data.coder_parameter.gpu.value ? [1] : []
             content {
               mount_path = "/dev/shm"
               name       = "shm"
@@ -916,7 +959,7 @@ resource "kubernetes_deployment_v1" "code-toolbox" {
           }
         }
         dynamic "volume" {
-          for_each = data.coder_parameter.gpu.value != "false" ? [1] : []
+          for_each = data.coder_parameter.gpu.value ? [1] : []
           content {
             name = "shm"
             empty_dir {
