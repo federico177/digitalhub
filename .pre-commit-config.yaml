@@ -5,18 +5,18 @@ repos:
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
     repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
+    rev: v5.0.0
   - hooks:
       - id: helmlint
     repo: https://github.com/gruntwork-io/pre-commit
     rev: v0.1.30
   - repo: https://github.com/ffais/yaml-sort
-    rev: v0.2.0
+    rev: v0.1.5
     hooks:
       - id: yaml-sort
-        pass_filenames: false
-        always_run: true
+        files: (values\.yaml)$
         args:
+          - sort
           - --input-file=values.yaml
           - --search-dir=charts/
           - --space-top-key=true

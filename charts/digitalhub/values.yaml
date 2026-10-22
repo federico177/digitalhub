@@ -362,6 +362,10 @@ coder:
       # applications over subdomains.
       # Be sure to also set CODER_WILDCARD_ACCESS_URL within coder.env[]
       wildcardHost: ""
+    #  coder.coder.image --
+    image:
+      #  coder.coder.image.tag -- Coder image tag
+      tag: v2.32.4
     #  coder.coder.ingress -- Coder ingress configuration
     ingress:
       #  coder.coder.ingress.enable -- Enable/Disable Coder ingress
@@ -455,34 +459,6 @@ coder:
         nodePort: "30050"
         privileged: false
         stopAfter: 8h
-        #  coder.template.customTemplates.code-toolbox.gpuTemplates -- gpuTemplates for the code-toolbox template, used to schedule the pod on nodes with GPU resources.
-        # gpuTemplates:
-        #   - name: gpu1
-        #     resources:
-        #       key: "nvidia.com/gpu"
-        #       value: 1
-        #     tolerations:
-        #       - effect: "NoSchedule"
-        #         key: "nvidia.com/gpu"
-        #         operator: "Equal"
-        #         value: "v100"
-        #       - effect: "NoSchedule"
-        #         key: "nvidia.com/gpu"
-        #         operator: "Equal"
-        #         value: "true"
-        #   - name: gpu2
-        #     resources:
-        #       key: "nvidia.com/gpu"
-        #       value: 1
-        #     tolerations:
-        #       - effect: "NoSchedule"
-        #         key: "nvidia.com/gpu"
-        #         operator: "Equal"
-        #         value: "h100"
-        #       - effect: "NoSchedule"
-        #         key: "nvidia.com/gpu"
-        #         operator: "Equal"
-        #         value: "true"
         tolerations: []
       - extraLabels: {}
         extraVars: []
@@ -504,6 +480,26 @@ coder:
             #  coder.template.customTemplates.postgres.ownerCredsSecret.passwordKey -- Username key
             usernameKey: ""
         stopAfter: 0h
+      - extraLabels: {}
+        extraVars: []
+        iconUrl: https://i.ibb.co/TrBDsZM/sqlpad.png
+        image: ghcr.io/scc-digitalhub/digitalhub/images/sqlpad:7.5.3
+        name: sqlpad
+        nodePort: "30140"
+        postgres:
+          #  coder.template.customTemplates.postgres.database -- Name of the Platform's main database
+          database: digitalhub
+          #  coder.template.customTemplates.postgres.hostname -- Host of the Platform's main database
+          hostname: ""
+          #  coder.template.customTemplates.postgres.ownerCredsSecret -- Set the keys that you use in your Platform's main database secret
+          ownerCredsSecret:
+            #  coder.template.customTemplates.postgres.ownerCredsSecret.passwordKey -- Password key
+            passwordKey: ""
+            #  coder.template.customTemplates.postgres.ownerCredsSecret.secretName -- Name of the Platform's main database secret containing the owner user username and password
+            secretName: ""
+            #  coder.template.customTemplates.postgres.ownerCredsSecret.passwordKey -- Username key
+            usernameKey: ""
+        stopAfter: 8h
     #  coder.template.upgrade -- Coder templates upgrade process configuration
     upgrade:
       #  coder.template.upgrade.enabled -- Enable/Disable the upgrade job for the Coder templates
@@ -513,14 +509,6 @@ coder:
       token: ""
   #  coder.username -- Username of the Coder admin user
   username: ""
-  # coder.workspace -- Coder workspace configuration
-  workspace:
-    upgrade:
-      #  coder.workspace.upgrade.enabled -- Enable/Disable the upgrade job for the Coder workspaces
-      enabled: false
-      #  coder.workspace.upgrade.token -- A token that will grant you permission to edit the workspaces of your instance.
-      #  Must be generated in Coder with the admin account.
-      token: ""
 
 #  core -- Core configuration
 core:
@@ -590,18 +578,6 @@ core:
     secretName: ""
     #  core.commonCredsSecret.useExistingCommonCredsSecret -- Set this to true if you are using an existing secret.
     useExistingCommonCredsSecret: false
-  # console -- Console configuration used to display metrics in the console.
-  console:
-    # console.metrics -- Metrics configuration used for the console
-    metrics:
-      # console.metrics.instance -- Metrics configuration used for display metrics in the console aggregated for instances
-      instance:
-      # console.metrics.project -- Metrics configuration used for display metrics in the console aggregated for projects
-      project:
-      # console.metrics.run -- Metrics configuration used for display metrics in the console aggregated for runs
-      run:
-      # console.metrics.user -- Metrics configuration used for display metrics in the console aggregated for users
-      user:
   #  core.coreAuthCreds --
   coreAuthCreds:
     #  core.coreAuthCreds.clientId -- Core clientId
@@ -756,27 +732,9 @@ core:
         name: container_cpu_usage_seconds_total
         #  prometheus.metrics.cpu.operation -- Prometheus operation applied to the metric
         operation: rate
-        #  prometheus.metrics.cpu.quota -- Quota for the metric
-        quota: ""
         #  prometheus.metrics.cpu.unit -- Metric unit
         unit: seconds
         #  prometheus.metrics.cpu.window -- Time window used by the metric operation
-        window: 2m
-      #  prometheus.metrics.cpuRequested -- CPU requested metric configuration
-      cpuRequested:
-        #  prometheus.metrics.cpuRequested.groupBy -- Dimension used to group metric values
-        groupBy: container
-        #  prometheus.metrics.cpuRequested.label -- Label name used for metric exposure
-        label: cpu-requested
-        #  prometheus.metrics.cpuRequested.name -- Prometheus metric name
-        name: ""
-        #  prometheus.metrics.cpuRequested.operation -- Prometheus operation applied to the metric
-        operation: rate
-        #  prometheus.metrics.cpuRequested.quota -- Quota for the metric
-        quota: ""
-        #  prometheus.metrics.cpuRequested.unit -- Metric unit
-        unit: seconds
-        #  prometheus.metrics.cpuRequested.window -- Time window used by the metric operation
         window: 2m
       #  prometheus.metrics.disk -- Disk metric configuration
       disk:
@@ -788,8 +746,6 @@ core:
         name: container_fs_writes_bytes_total
         #  prometheus.metrics.disk.operation -- Prometheus operation applied to the metric
         operation: ""
-        #  prometheus.metrics.disk.quota -- Quota for the metric
-        quota: ""
         #  prometheus.metrics.disk.unit -- Metric unit
         unit: bytes
         #  prometheus.metrics.disk.window -- Time window used by the metric operation
@@ -804,27 +760,9 @@ core:
         name: ""
         #  prometheus.metrics.gpu.operation -- Prometheus operation applied to the metric
         operation: ""
-        #  prometheus.metrics.gpu.quota -- Quota for the metric
-        quota: ""
         #  prometheus.metrics.gpu.unit -- Metric unit
         unit: ""
         #  prometheus.metrics.gpu.window -- Time window used by the metric operation
-        window: ""
-      #  prometheus.metrics.gpuCount -- GPU count metric configuration
-      gpuCount:
-        #  prometheus.metrics.gpuCount.groupBy -- Dimension used to group metric values
-        groupBy: ""
-        #  prometheus.metrics.gpuCount.label -- Label name used for metric exposure
-        label: gpu-count
-        #  prometheus.metrics.gpuCount.name -- Prometheus metric name
-        name: ""
-        #  prometheus.metrics.gpuCount.operation -- Prometheus operation applied to the metric
-        operation: ""
-        #  prometheus.metrics.gpuCount.quota -- Quota for the metric
-        quota: ""
-        #  prometheus.metrics.gpuCount.unit -- Metric unit
-        unit: ""
-        #  prometheus.metrics.gpuCount.window -- Time window used by the metric operation
         window: ""
       #  prometheus.metrics.gpuMemory -- GPU memory metric configuration
       gpuMemory:
@@ -836,8 +774,6 @@ core:
         name: ""
         #  prometheus.metrics.gpuMemory.operation -- Prometheus operation applied to the metric
         operation: ""
-        #  prometheus.metrics.gpuMemory.quota -- Quota for the metric
-        quota: ""
         #  prometheus.metrics.gpuMemory.unit -- Metric unit
         unit: bytes
         #  prometheus.metrics.gpuMemory.window -- Time window used by the metric operation
@@ -852,27 +788,9 @@ core:
         name: container_memory_working_set_bytes
         #  prometheus.metrics.memory.operation -- Prometheus operation applied to the metric
         operation: ""
-        #  prometheus.metrics.memory.quota -- Quota for the metric
-        quota: ""
         #  prometheus.metrics.memory.unit -- Metric unit
         unit: bytes
         #  prometheus.metrics.memory.window -- Time window used by the metric operation
-        window: ""
-      #  prometheus.metrics.memoryRequested -- Memory requested metric configuration
-      memoryRequested:
-        #  prometheus.metrics.memoryRequested.groupBy -- Dimension used to group metric values
-        groupBy: container
-        #  prometheus.metrics.memoryRequested.label -- Label name used for metric exposure
-        label: memory-requested
-        #  prometheus.metrics.memoryRequested.name -- Prometheus metric name
-        name: ""
-        #  prometheus.metrics.memoryRequested.operation -- Prometheus operation applied to the metric
-        operation: ""
-        #  prometheus.metrics.memoryRequested.quota -- Quota for the metric
-        quota: ""
-        #  prometheus.metrics.memoryRequested.unit -- Metric unit
-        unit: bytes
-        #  prometheus.metrics.memoryRequested.window -- Time window used by the metric operation
         window: ""
       #  prometheus.metrics.networkReceive -- Network receive metric configuration
       networkReceive:
@@ -884,8 +802,6 @@ core:
         name: container_network_receive_bytes_total
         #  prometheus.metrics.networkReceive.operation -- Prometheus operation applied to the metric
         operation: rate
-        #  prometheus.metrics.networkReceive.quota -- Quota for the metric
-        quota: ""
         #  prometheus.metrics.networkReceive.unit -- Metric unit
         unit: bytes
         #  prometheus.metrics.networkReceive.window -- Time window used by the metric operation
@@ -900,44 +816,10 @@ core:
         name: container_network_transmit_bytes_total
         #  prometheus.metrics.networkSend.operation -- Prometheus operation applied to the metric
         operation: rate
-        #  prometheus.metrics.networkSend.quota -- Quota for the metric
-        quota: ""
         #  prometheus.metrics.networkSend.unit -- Metric unit
         unit: bytes
         #  prometheus.metrics.networkSend.window -- Time window used by the metric operation
         window: 2m
-      #  prometheus.metrics.volumes -- Volumes metric configuration
-      volumes:
-        #  prometheus.metrics.volumes.groupBy -- Dimension used to group metric values
-        groupBy: ""
-        #  prometheus.metrics.volumes.label -- Label name used for metric exposure
-        label: "volume-{persistentvolumeclaim}"
-        #  prometheus.metrics.volumes.name -- Prometheus metric name
-        name: kubelet_volume_stats_used_bytes
-        #  prometheus.metrics.volumes.operation -- Prometheus operation applied to the metric
-        operation: ""
-        #  prometheus.metrics.volumes.quota -- Quota for the metric
-        quota: ""
-        #  prometheus.metrics.volumes.unit -- Metric unit
-        unit: bytes
-        #  prometheus.metrics.volumes.window -- Time window used by the metric operation
-        window: ""
-      #  prometheus.metrics.volumesCount -- Volumes count metric configuration
-      volumesCount:
-        #  prometheus.metrics.volumesCount.groupBy -- Dimension used to group metric values
-        groupBy: ""
-        #  prometheus.metrics.volumesCount.label -- Label name used for metric exposure
-        label: volumes-count
-        #  prometheus.metrics.volumesCount.name -- Prometheus metric name
-        name: ""
-        #  prometheus.metrics.volumesCount.operation -- Prometheus operation applied to the metric
-        operation: ""
-        #  prometheus.metrics.volumesCount.quota -- Quota for the metric
-        quota: ""
-        #  prometheus.metrics.volumesCount.unit -- Metric unit
-        unit: ""
-        #  prometheus.metrics.volumesCount.window -- Time window used by the metric operation
-        window: ""
     #  prometheus.namespace -- Namespace used for Prometheus queries
     namespace: ""
     #  prometheus.rateInterval -- Rate interval in seconds used in Prometheus rate operations
@@ -1575,6 +1457,8 @@ open-webui:
       value: not-used
     - name: SAFE_MODE
       value: "True"
+    - name: SPACE_ID
+      value: test
   #  open-webui.ollama --
   ollama:
     #  open-webui.ollama.enabled -- Enable/Disable ollama for OpenWebUI
@@ -1667,21 +1551,19 @@ platformPackages:
   #  For the most stable experience, these values should NOT be modified.
   packages:
     - name: digitalhub-runtime-container
-      tag: "0.15.3"
+      tag: "0.15.0"
     - name: digitalhub-runtime-dbt
-      tag: "0.15.2"
+      tag: "0.15.0"
     - name: digitalhub-runtime-flower
-      tag: "0.15.1"
+      tag: "0.15.0"
     - name: digitalhub-runtime-hera
-      tag: "0.15.1"
+      tag: "0.15.0"
     - name: digitalhub-runtime-modelserve
       tag: "0.15.0"
     - name: digitalhub-runtime-python
-      tag: "0.15.2"
-    - name: digitalhub-runtime-servicegraph
-      tag: "0.15.1"
+      tag: "0.15.0"
     - name: digitalhub[full]
-      tag: "0.15.7"
+      tag: "0.15.0"
   #  platformPackages.preRelease -- If set to true, the latest version of the packages will be used (even beta ones).
   #  WARNING:
   #  For the most stable experience, this value should NOT be modified.

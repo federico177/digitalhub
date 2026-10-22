@@ -47,7 +47,7 @@ global:
     #  global.ociRegistry.secretName -- Name of the secret of your registry. It has higher priority.
     secretName: ""
     #  global.ociRegistry.url -- Registry url
-    url: 192.168.49.2:30150
+    url: "digitalhub-docker-registry:443"
     #  global.ociRegistry.username -- Registry username
     username: ""
   #  global.podSecurityContext -- [Security context for pod](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/)
@@ -144,7 +144,7 @@ global:
   #  global.service --
   service:
     #  global.service.type -- Service type used by the Platform's applications
-    type: &serviceType "NodePort"
+    type: &serviceType "ClusterIP"
 
 #  apigw-operator -- [API Gateway Operator](https://github.com/scc-digitalhub/apigw-operator) configuration.
 apigw-operator:
@@ -313,6 +313,31 @@ coder:
       storageClass: ""
   #  coder.coder --
   coder:
+    httproute:
+      # coder.coder.httproute.annotations -- The HTTPRoute annotations.
+      annotations: {}
+      # coder.coder.httproute.enable -- Whether to create the HTTPRoute object. If using a
+      # Gateway, we recommend not specifying coder.tls.secretNames as the Gateway
+      # will handle TLS termination.
+      enable: true
+      # coder.coder.httproute.host -- The hostname to match on.
+      # Be sure to also set CODER_ACCESS_URL within coder.env[]
+      host: "coder.ipcei-testbed.internal"
+      # coder.coder.httproute.parentRefs -- the parentRefs to bind the route to
+      # - name: my-gw
+      #   namespace: gateway-namespace
+      #   # sectionName is optional to fix to a specific listener
+      #   sectionName: listener-name
+      parentRefs:
+        - name: testbed-gateway
+          namespace: gateway
+      # coder.coder.httproute.wildcardHost -- The wildcard hostname to match on. Should be
+      # in the form "*.example.com" or "*-suffix.example.com". If you are using a
+      # suffix after the wildcard, the suffix will be stripped from the created
+      # ingress to ensure that it is a legal ingress host. Optional if not using
+      # applications over subdomains.
+      # Be sure to also set CODER_WILDCARD_ACCESS_URL within coder.env[]
+      wildcardHost: "*.coder.ipcei-testbed.internal"
     #  coder.coder.env -- Additional environment variables for Coder
     env:
       - name: CODER_CACHE_DIRECTORY
@@ -330,6 +355,14 @@ coder:
             name: coder-db-url
       - name: CODER_TELEMETRY_ENABLE
         value: "false"
+      - name: CODER_WILDCARD_ACCESS_URL
+        value: "*.coder.ipcei-testbed.internal"
+      - name: CODER_ACCESS_URL
+        value: "http://coder.ipcei-testbed.internal"
+    #  coder.coder.image --
+    image:
+      #  coder.coder.image.tag -- Coder image tag
+      tag: v2.32.4
     #  coder.coder.ingress -- Coder ingress configuration
     ingress:
       #  coder.coder.ingress.enable -- Enable/Disable Coder ingress
@@ -412,7 +445,19 @@ coder:
         nodePort: "30050"
         privileged: false
         stopAfter: 8h
-        tolerations: []
+        tolerations:
+          - key: "device"
+            operator: "Equal"
+            value: "jetson-orin"
+            effect: "NoSchedule"
+          - key: "device"
+            operator: "Equal"
+            value: "raspberrypi5"
+            effect: "NoSchedule"
+          - key: "device"
+            operator: "Equal"
+            value: "raspberrypi3"
+            effect: "NoSchedule"
       - extraLabels: {}
         extraVars: []
         iconUrl: https://cdn-images-1.medium.com/max/1200/1*2nGovT9tEnQva8NWfHLZxg.png
@@ -453,13 +498,23 @@ coder:
             #  coder.template.customTemplates.postgres.ownerCredsSecret.passwordKey -- Username key
             usernameKey: username
         stopAfter: 8h
+      - extraLabels: {}
+        extraVars: []
+        iconUrl: https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/Jupyter_logo.svg/1200px-Jupyter_logo.svg.png
+        image: ghcr.io/scc-digitalhub/jupyter-3-10:0.14.3
+        image311: ghcr.io/scc-digitalhub/jupyter-3-11:0.14.3
+        image39: ghcr.io/scc-digitalhub/jupyter-3-9:0.14.3
+        name: jupyter
+        nodePort: "30040"
+        privileged: false
+        stopAfter: 8h
     #  coder.template.upgrade -- Coder templates upgrade process configuration
     upgrade:
       #  coder.template.upgrade.enabled -- Enable/Disable the upgrade job for the Coder templates
       enabled: false
       #  coder.template.upgrade.token -- A token that will grant you permission to edit the templates of your instance.
       #  Must be generated in Coder with the admin account.
-      token: ""
+      token: "NZpKubv5n2-iQqbeqdSltIHKQi0a3mRgF"
   #  coder.username -- Username of the Coder admin user
   username: test
 
@@ -467,6 +522,107 @@ coder:
 core:
   #  core.enabled -- Enable/Disable Core
   enabled: true
+
+  builder:
+    env:
+      - name: BUILDKITD_FLAGS
+        value: "--oci-worker-no-process-sandbox"
+    framework:
+      args:
+        - build
+        - --no-cache
+        - --frontend
+        - dockerfile.v0
+      #  builder.framework.client-secret -- Specify mTLS client secret used by buildkit cli to authenticate to a remote buildkit deamon
+      client-secret:
+        #  builder.framework.client-secret.mount-path: -- Mount path where the certificates are mounted inside the container
+        mount-path: ""
+        #  builder.framework.client-secret.name -- Client certificate secret name
+        name: ""
+      #  builder.framework.command -- Override command defined in the builder image
+      command: ""
+      #  builder.framework.image -- Set builder image
+      image: moby/buildkit:v0.29.0-rootless
+      #  builder.framework.image-prefix -- Sets the prefix that will be added to the image name
+      image-prefix: ""
+      #  builder.framework.name -- Configure which builder use to build OCI image (kaniko or buildkit)
+      name: buildkit
+      #  builder.framework.secret -- Specify the name of the secret that contains the registry credentials
+      secret: ""
+
+  route:
+    #  core.route.main -- Main HTTPRoute configuration.
+    main:
+      #  core.route.main.enabled -- If set to true, the chart will be configured for HTTPRoute utilization.
+      enabled: true
+      #  core.route.main.additionalRules -- Additional rules for the HTTPRoute resource.
+      additionalRules: []
+      #  core.route.main.annotations -- Annotations to add to the HTTPRoute resource.
+      annotations: {}
+      #  core.route.main.apiVersion -- API version to use in the HTTPRoute resource.
+      apiVersion: gateway.networking.k8s.io/v1
+      #  core.route.main.filters -- List of filters for the HTTPRoute resource.
+      filters: []
+      #  core.route.main.hostnames -- List of hostnames for the HTTPRoute resource.
+      hostnames:
+        - "core.ipcei-testbed.internal"
+      #  core.route.main.httpsRedirect -- If set to true, the HTTPRoute will be configured to redirect HTTP traffic to HTTPS.
+      httpsRedirect: false
+      #  core.route.main.kind -- Kind to use in the HTTPRoute resource.
+      kind: HTTPRoute
+      #  core.route.main.labels -- Labels to add to the HTTPRoute resource.
+      labels: {}
+      #  core.route.main.matches -- List of matches for the HTTPRoute resource.
+      matches:
+        #  core.route.main.matches.path -- Path match for the HTTPRoute resource.
+        - path:
+            #  core.route.main.matches.path.type -- Type of path match for the HTTPRoute resource.
+            type: PathPrefix
+            #  core.route.main.matches.path.value -- Value of the path match for the HTTPRoute resource.
+            value: /
+      #  core.route.main.parentRefs -- ParentRefs to use in the HTTPRoute resource.
+      parentRefs:
+        - name: testbed-gateway
+          namespace: gateway
+      #  core.route.main.timeouts -- Timeouts for the HTTPRoute resource.
+      timeouts: {}
+
+  templates:
+    - name: raspberrypi3
+      path: /templates/raspberrypi3.yaml
+    - name: raspberrypi5
+      path: /templates/raspberrypi5.yaml
+    - name: jetson-orin
+      path: /templates/jetson-orin.yaml
+  volumeMounts:
+    - mountPath: /templates
+      name: templates
+  volumes:
+    - configMap:
+        name: core-templates
+      name: templates
+  # image:
+  #   repository: ghcr.io/scc-digitalhub/digitalhub-core
+  #   tag: "arm64"
+  #   pullPolicy: IfNotPresent
+
+  # resources:
+  # #  resources.limits --
+  #   limits:
+  #     #  resources.limits.cpu -- Max cpu request
+  #     cpu: 1000m
+  #     #  resources.limits.memory -- Max memory request
+  #     memory: 512Mi
+  #   #  resources.requests --
+  #   requests:
+  #     #  resources.requests.cpu -- Min cpu request
+  #     cpu: 200m
+  #     #  resources.requests.memory -- Max cpu request
+  #     memory: 512Mi
+    
+  # healthcheck:
+  #   #  core.healthcheck.enabled -- Enable/disable healthcheck
+  #   enabled: false
   #  core.additionalConfig --
   additionalConfig:
     #  core.additionalConfig.debug --
@@ -478,15 +634,15 @@ core:
     #  core.additionalConfig.resources -- Resources for the pods created by Core
     resources:
       #  core.additionalConfig.resources.cpuLim -- CPU limit
-      cpuLim: "1"
+      cpuLim: "2"
       #  core.additionalConfig.resources.cpuReq -- CPU request
       cpuReq: 100m
       #  core.additionalConfig.resources.gpuKey -- GPU key
       gpuKey: nvidia.com/gpu
       #  core.additionalConfig.resources.memLim -- Memory limit
-      memLim: "2Gi"
+      memLim: "4Gi"
       #  core.additionalConfig.resources.memReq -- Memory request
-      memReq: 256Mi
+      memReq: 128Mi
       #  core.additionalConfig.resources.pvcLim -- PVC storage limit
       pvcLim: ""
       #  core.additionalConfig.resources.pvcReq -- PVC storage request
@@ -494,7 +650,15 @@ core:
     #  core.additionalConfig.security --
     security:
       #  core.additionalConfig.security.disableRoot -- Disable root for pods created by Core
-      disableRoot: true
+      disableRoot: false
+
+    ephemeralVolume:
+    # additionalConfig.ephemeral.limits -- Configure max size for the ephemeral storage volumes
+      limits: ""
+      # additionalConfig.ephemeral.requests -- Configure the default size for all ephemeral storage volumes can be overrided by users
+      requests: ""
+      # additionalConfig.ephemeral.storageClass -- Specify the storage class for ephemeral storage
+      storageClass: "local-path"
   #  core.argoWorkflow -- Core Argoworkflow configuration
   argoWorkflow:
     #  core.argoWorkflow.configmap -- Name of the configmap containing the artifact repositories that the Argo Workflows should use
@@ -555,6 +719,16 @@ core:
     ownerSecret: digitalhub-owner-user.database-postgres-cluster.credentials.postgresql.acid.zalan.do
     #  core.databaseProvider.port -- Port of the main database of the platform
     port: "5432"
+  #  initImage --
+  initImage:
+    #  initImage.builderTool --
+    builderTool:
+      #  initImage.builderTool.image -- Cpre builder repository
+      image: ghcr.io/federico177/digitalhub-core-builder-tool
+      #  initImage.builderTool.tag -- Core builder tag
+      tag: 5b6f4347-arm
+
+
   #  core.kanikoArgs --
   kanikoArgs: ""
   #  core.kubeai --
@@ -572,7 +746,7 @@ core:
     #  core.lucene.persistence -- Lucene persistence configuration
     persistence:
       #  core.lucene.persistence.enabled -- Enable persistence for Lucene
-      enabled: true
+      enabled: false                #disabilitata
       #  core.lucene.persistence.accessMode -- Access mode for the Lucene persistent volume claim
       accessMode: ReadWriteOnce
       #  core.lucene.persistence.size -- Size for the Lucene persistent volume claim
@@ -761,6 +935,43 @@ core:
 
 #  dashboard -- Platform's dashboard configuration
 dashboard:
+
+  route:
+    #  core.route.main -- Main HTTPRoute configuration.
+    main:
+      #  core.route.main.enabled -- If set to true, the chart will be configured for HTTPRoute utilization.
+      enabled: true
+      #  core.route.main.additionalRules -- Additional rules for the HTTPRoute resource.
+      additionalRules: []
+      #  core.route.main.annotations -- Annotations to add to the HTTPRoute resource.
+      annotations: {}
+      #  core.route.main.apiVersion -- API version to use in the HTTPRoute resource.
+      apiVersion: gateway.networking.k8s.io/v1
+      #  core.route.main.filters -- List of filters for the HTTPRoute resource.
+      filters: []
+      #  core.route.main.hostnames -- List of hostnames for the HTTPRoute resource.
+      hostnames:
+        - "dashboard.ipcei-testbed.internal"
+      #  core.route.main.httpsRedirect -- If set to true, the HTTPRoute will be configured to redirect HTTP traffic to HTTPS.
+      httpsRedirect: false
+      #  core.route.main.kind -- Kind to use in the HTTPRoute resource.
+      kind: HTTPRoute
+      #  core.route.main.labels -- Labels to add to the HTTPRoute resource.
+      labels: {}
+      #  core.route.main.matches -- List of matches for the HTTPRoute resource.
+      matches:
+        #  core.route.main.matches.path -- Path match for the HTTPRoute resource.
+        - path:
+            #  core.route.main.matches.path.type -- Type of path match for the HTTPRoute resource.
+            type: PathPrefix
+            #  core.route.main.matches.path.value -- Value of the path match for the HTTPRoute resource.
+            value: /
+      #  core.route.main.parentRefs -- ParentRefs to use in the HTTPRoute resource.
+      parentRefs:
+        - name: testbed-gateway
+          namespace: gateway
+      #  core.route.main.timeouts -- Timeouts for the HTTPRoute resource.
+      timeouts: {}
   #  dashboard.additional-components -- Additional components that you wish to add to your Dashboard
   additional-components:
     #  dashboard.additional-components.enabled -- Enable/Disable additional components for the Dashboard
@@ -815,7 +1026,7 @@ dashboard:
     #  dashboard.image.repository -- Dashboard container image repository.
     repository: ghcr.io/scc-digitalhub/dh-dashboard
     #  dashboard.image.tag -- Dashboard container image tag.
-    tag: 0.1.4
+    tag: latest
   #  dashboard.imagePullSecrets -- Image pull secrets.
   #  Optionally specify an array of imagePullSecrets.
   #  Secrets must be manually created in the namespace.
@@ -886,15 +1097,15 @@ dashboard:
     #  dashboard.resources.limits -- Limits
     limits:
       #  dashboard.resources.limits.cpu -- CPU limit
-      cpu: 1000m
+      cpu: 500m
       #  dashboard.resources.limits.memory -- Memory limit
-      memory: 512Mi
+      memory: 256Mi
     #  dashboard.resources.requests -- Requests
     requests:
       #  dashboard.resources.requests.cpu -- CPU request
-      cpu: 250m
+      cpu: 100m
       #  dashboard.resources.requests.memory -- Memory request
-      memory: 256Mi
+      memory: 128Mi
   #  dashboard.securityContext -- Dashboard [Security context for container](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/)
   securityContext:
     #  dashboard.securityContext.allowPrivilegeEscalation -- Dashboard allow privilege escalation
@@ -939,6 +1150,15 @@ dashboard:
 docker-registry:
   #  docker-registry.enabled -- Enable/Disable docker registry
   enabled: true
+  
+  tlsSecretName: digitalhub-registry-tls
+  configData:
+    version: 0.1
+    http:
+      addr: :5000
+      tls:
+        certificate: /etc/certs/tls.crt
+        key: /etc/certs/tls.key
   #  docker-registry.className --
   className: nginx
   #  docker-registry.containerSecurityContext -- [Security context for container](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/)
@@ -987,6 +1207,7 @@ docker-registry:
     sysctls: []
   #  docker-registry.service -- Service configurations.
   service:
+    port: 443
     #  docker-registry.service.nodePort -- Service NodePort.
     nodePort: 30150
     #  docker-registry.service.type -- Service type.
@@ -1006,7 +1227,7 @@ dremio-rest-server-operator:
 #  ext-postgres-operator -- External Postgres Operator configuration.
 ext-postgres-operator:
   #  ext-postgres-operator.enabled -- Enable/Disable the external Postgres operator
-  enabled: true
+  enabled: false
   #  ext-postgres-operator.image --
   image:
     #  ext-postgres-operator.image.tag -- Container image tag.
@@ -1086,7 +1307,11 @@ kubeai:
 #  kubernetes-resource-manager -- Kubernetes Resource Manager (KRM) configuration
 kubernetes-resource-manager:
   #  kubernetes-resource-manager.enabled -- Enable/Disable KRM
-  enabled: true
+  enabled: false
+
+  ingress:
+    #  kubernetes-resource-manager.ingress.enabled -- Enable/Disable ingress
+    enabled: false
   #  kubernetes-resource-manager.priorityClassName -- Name of the priority class to use for the KRM pods. If not set, no priority class will be used.
   priorityClassName: *lowPriority
   #  kubernetes-resource-manager.resourceSelectors -- Configure the resources that you want to see in your KRM instance
@@ -1106,7 +1331,7 @@ kubernetes-resource-manager:
 #  For a complete list of all the Values, as well as the specific documentation, please check the [OpenWebUI chart repository](https://github.com/open-webui/helm-charts/tree/main/charts/open-webui)
 open-webui:
   #  open-webui.enabled -- Enable/Disable OpenWebUI
-  enabled: true
+  enabled: false
   containerSecurityContext:
     allowPrivilegeEscalation: false
     capabilities:
@@ -1186,22 +1411,20 @@ platformPackages:
   #  WARNING:
   #  For the most stable experience, these values should NOT be modified.
   packages:
+    - name: digitalhub[full]
+      tag: "0.15.0"
     - name: digitalhub-runtime-container
-      tag: "0.15.3"
+      tag: "0.15.0"
     - name: digitalhub-runtime-dbt
-      tag: "0.15.2"
+      tag: "0.15.0"
     - name: digitalhub-runtime-flower
-      tag: "0.15.1"
+      tag: "0.15.0"
     - name: digitalhub-runtime-hera
-      tag: "0.15.1"
+      tag: "0.15.0"
     - name: digitalhub-runtime-modelserve
       tag: "0.15.0"
     - name: digitalhub-runtime-python
-      tag: "0.15.2"
-    - name: digitalhub-runtime-servicegraph
-      tag: "0.15.1"
-    - name: digitalhub[full]
-      tag: "0.15.7"
+      tag: "0.15.0"
   #  platformPackages.preRelease -- If set to true, the latest version of the packages will be used (even beta ones).
   #  WARNING:
   #  For the most stable experience, this value should NOT be modified.
@@ -1213,6 +1436,12 @@ platformPackages:
 postgres-operator:
   #  postgres-operator.enabled -- Enable/Disable the Postgres operator
   enabled: true
+
+  # image:
+  #   registry: ghcr.io
+  #   repository: zalando/postgres-operator
+  #   tag: v1.11.0
+  #   pullPolicy: "IfNotPresent"
   #  postgres-operator.databases -- The databases that will be created with the Postgres operator
   databases:
     #  postgres-operator.databases.coder -- Coder database configuration
@@ -1246,15 +1475,15 @@ postgres-operator:
         #  postgres-operator.databases.core.resources.limits -- Limits
         limits:
           #  postgres-operator.databases.core.resources.limits.cpu -- CPU limit
-          cpu: "2"
+          cpu: "1"
           #  postgres-operator.databases.core.resources.limits.memory -- Memory limit
-          memory: 2Gi
+          memory: 500Mi
         #  postgres-operator.databases.core.resources.requests -- Requests
         requests:
           #  postgres-operator.databases.core.resources.requests.cpu -- CPU request
-          cpu: 512m
+          cpu: 100m
           #  postgres-operator.databases.core.resources.requests.memory -- Memory request
-          memory: 1000Mi
+          memory: 128Mi
       #  postgres-operator.databases.core.volume -- Core postgres cluster PVC configuration
       volume:
         #  postgres-operator.databases.core.volume.size -- PVC size
@@ -1268,15 +1497,15 @@ postgres-operator:
         #  postgres-operator.databases.digitalhub.resources.limits -- Limits
         limits:
           #  postgres-operator.databases.digitalhub.resources.limits.cpu -- CPU limit
-          cpu: "2"
+          cpu: "1"
           #  postgres-operator.databases.digitalhub.resources.limits.memory -- Memory limit
-          memory: 2Gi
+          memory: 500Mi
         #  postgres-operator.databases.digitalhub.resources.requests -- Requests
         requests:
           #  postgres-operator.databases.digitalhub.resources.requests.cpu -- CPU request
-          cpu: 512m
+          cpu: 100m
           #  postgres-operator.databases.digitalhub.resources.requests.memory -- Memory request
-          memory: 1000Mi
+          memory: 128Mi
       #  postgres-operator.databases.digitalhub.volume -- Database postgres cluster PVC configuration
       volume:
         #  postgres-operator.databases.digitalhub.volume.size -- PVC size

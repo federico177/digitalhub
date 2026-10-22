@@ -138,24 +138,6 @@ Set packages versions for code-toolbox and tests
 
 
 {{/*
-Checksum and successful upgrade state for Coder templates
-*/}}
-{{- define "digitalhub.coderTemplatesChecksum" -}}
-{{- printf "%s\n%s" ((.Files.Glob "confs/coder/*main.tf").AsConfig) (tpl (.Files.Get "confs/coder/upgrade-templates.sh") .) | sha256sum -}}
-{{- end }}
-
-{{- define "digitalhub.coderTemplatesUpgradeRequired" -}}
-{{- $desiredChecksum := include "digitalhub.coderTemplatesChecksum" . -}}
-{{- $upgradeState := lookup "v1" "ConfigMap" .Release.Namespace "coder-template-upgrade-state" -}}
-{{- $appliedChecksum := "" -}}
-{{- if $upgradeState -}}
-{{- $appliedChecksum = dig "metadata" "annotations" "checksum/coder-templates" "" $upgradeState -}}
-{{- end -}}
-{{- if ne $desiredChecksum $appliedChecksum -}}true{{- end -}}
-{{- end }}
-
-
-{{/*
 Variables used in the creation and upgrade of Coder templates
 */}}
 {{- define "digitalhub.coderTemplateVariables" -}}
@@ -201,7 +183,11 @@ Variables used in the creation and upgrade of Coder templates
   {{- $variables = append $variables (printf "postgresql_password_key=%s" $template.postgres.ownerCredsSecret.passwordKey ) }}
 {{- end }}
 {{- end }}
-{{- if (eq $template.name "code-toolbox")}}
+{{- if eq $template.name "jupyter"}}
+  {{- $variables = append $variables (printf "image_3_9=%s" $template.image39 ) }}
+  {{- $variables = append $variables (printf "image_3_11=%s" $template.image311 ) }}
+{{- end }}
+{{- if or (eq $template.name "jupyter") (eq $template.name "code-toolbox")}}
   {{- $variables = append $variables (printf "privileged=%v" $template.privileged ) }}
   {{- $variables = append $variables (printf "stsenabled=%v" $root.Values.core.sts.enabled ) }}
 {{- if and $root.Values.core.coreAuthCreds.existingSecret.secretName $root.Values.core.coreAuthCreds.existingSecret.clientIdKey $root.Values.core.coreAuthCreds.existingSecret.clientSecretKey }}

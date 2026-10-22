@@ -2,16 +2,13 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-{{ if and .Values.coder.enabled .Values.coder.template.upgrade.enabled (not .Values.coder.workspace.upgrade.enabled) (or .Values.coder.template.upgrade.token .Values.coder.existingSecrets.adminSessionTokenExistingSecret.secretName) (eq (include "digitalhub.coderTemplatesUpgradeRequired" .) "true") -}}
+{{ if and .Values.coder.enabled .Values.coder.template.upgrade.enabled (or .Values.coder.template.upgrade.token .Values.coder.existingSecrets.adminSessionTokenExistingSecret.secretName) -}}
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: coder-template-upgrade
-  labels:
-    {{- include "digitalhub.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": post-upgrade
-    "helm.sh/hook-weight": "0"
     "helm.sh/hook-delete-policy": hook-succeeded
 spec:
   backoffLimit: 1
@@ -19,8 +16,8 @@ spec:
     spec:
       containers:
         - name: coder-template-upgrade
-          image: {{ include "coder.image" .Subcharts.coder }}
-          command: ["/bin/bash", "/home/coder/init-files/upgrade-templates.sh"]
+          image: {{ .Subcharts.coder.Values.coder.image.repo }}:{{ .Subcharts.coder.Values.coder.image.tag }}
+          command: ["/bin/bash", "/home/coder/init-files/upgrade.sh"]
           env:
             {{- with .Subcharts.coder.Values.coder.env -}}
             {{ toYaml . | nindent 12 }}

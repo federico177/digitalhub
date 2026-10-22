@@ -7,8 +7,6 @@ apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
   name: {{ .Values.global.priority.lowPriority.className | default "low-priority" }}
-  labels:
-    {{- include "digitalhub.labels" . | nindent 4 }}
 value: {{ .Values.global.priority.lowPriority.value | default 100 }}
 globalDefault: false
 description: "Priority class for the less critical components of the platform."

@@ -7,8 +7,6 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: coder-deploy-template
-  labels:
-    {{- include "digitalhub.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": post-install
     "helm.sh/hook-delete-policy": hook-succeeded
@@ -19,7 +17,7 @@ spec:
     spec:
       containers:
         - name: coder-deploy-template
-          image: {{ include "coder.image" .Subcharts.coder }}
+          image: {{ .Subcharts.coder.Values.coder.image.repo }}:{{ .Subcharts.coder.Values.coder.image.tag }}
           command: ["/bin/bash", "/home/coder/init-files/init.sh"]
           env:
             {{- with .Subcharts.coder.Values.coder.env -}}
